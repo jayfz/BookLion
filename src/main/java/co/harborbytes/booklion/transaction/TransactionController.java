@@ -16,11 +16,17 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import java.util.List;
+
 @RestController
-@RequestMapping( "/transactions")
+@RequestMapping("/transactions")
 public class TransactionController {
 
     private final TransactionService transactionService;
+    private final Instant defaultFromDate = Instant.parse("2024-01-01T00:00:00Z");
+
 
     @Autowired
     public TransactionController(TransactionService transactionService) {
@@ -41,6 +47,36 @@ public class TransactionController {
         return new ApiResponseSuccess<>(responsePayload);
     }
 
+    @GetMapping(value = "/balance-sheet", params= "from")
+    public ApiResponseSuccess<BalanceSheetReport> getBalanceSheetReport(@RequestParam("from") String fromDate){
+
+        Instant date;
+        try{
+            date = Instant.parse(fromDate);
+        }
+        catch (DateTimeParseException dtpe){
+            date = defaultFromDate;
+        }
+
+        User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return new ApiResponseSuccess<>(transactionService.getBalanceSheetReport(loggedInUser.getId(), date) );
+    }
+
+    @GetMapping(value = "income-statement", params= "from")
+    public ApiResponseSuccess<IncomeStatementReport> getIncomeStatementReport(@RequestParam("from") String fromDate){
+
+        Instant date;
+        try{
+            date = Instant.parse(fromDate);
+        }
+        catch (DateTimeParseException dtpe){
+            date = defaultFromDate;
+        }
+
+        User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return new ApiResponseSuccess<>(transactionService.getIncomeStatementReport(loggedInUser.getId(), date) );
+    }
+
     @ResponseStatus(HttpStatus.OK)
     @GetMapping
     public ApiResponseSuccess<Page<TransactionDTO>> getTransactionsByUser(@PageableDefault(page = 0, size = 20, sort = "id", direction = Sort.Direction.ASC) Pageable pageable){
@@ -50,6 +86,14 @@ public class TransactionController {
         Page<TransactionDTO> responsePayload = transactionService.getTransactionsByUserId(loggedInUser.getId(), pageable);
         return new ApiResponseSuccess<>(responsePayload);
     }
+
+    @GetMapping(value = "/generalLedger", params = "accountNumber")
+    public ApiResponseSuccess<List<AccountTransactionLedger>> findTransactionsByUserIdAndAccountNumber(@RequestParam("accountNumber") String accountNumber){
+        User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return new ApiResponseSuccess<>(transactionService.findTransactionsByUserIdAndAccountNumber(loggedInUser.getId(), accountNumber)) ;
+    }
+
+
 
     @ResponseStatus(HttpStatus.OK)
     @GetMapping("/{id}")

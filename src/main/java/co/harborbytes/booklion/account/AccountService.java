@@ -3,6 +3,9 @@ package co.harborbytes.booklion.account;
 
 import co.harborbytes.booklion.exception.DomainEntityNotFoundException;
 import co.harborbytes.booklion.exception.DomainEntityValidationException;
+import co.harborbytes.booklion.transaction.Transaction;
+import co.harborbytes.booklion.transaction.TransactionLine;
+import co.harborbytes.booklion.transaction.TransactionRepository;
 import jakarta.persistence.Column;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,29 +13,27 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import jakarta.validation.ConstraintViolation;
 import org.springframework.validation.*;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 
 @Service
 public class AccountService {
     private final AccountRepository repo;
     private final AccountMapper mapper;
+    private final TransactionRepository transactionRepository;
     private final Validator validator;
 
     @Autowired
-    public AccountService(AccountRepository repo, AccountMapper mapper, Validator validator) {
+    public AccountService(AccountRepository repo, AccountMapper mapper, Validator validator, TransactionRepository transactionRepository) {
         this.repo = repo;
         this.mapper = mapper;
         this.validator = validator;
+        this.transactionRepository = transactionRepository;
     }
 
     @Transactional
@@ -136,4 +137,93 @@ public class AccountService {
     }
 
 
+    public List<AccountOverviewByType> getAccountOverviewGroupedByAccountType(Long userId, Instant from) {
+        List<Transaction> transactionList =  transactionRepository.findAllTransactionsByUserIdAndCreatedAtAfter(userId, from);
+
+        Map<AccountType, AccountOverviewByType> overviewMap = new HashMap<>();
+
+        for(Transaction transaction : transactionList){
+            for(TransactionLine transactionLine: transaction.getLines()){
+
+
+                AccountType accountType = transactionLine.getAccount().getAccountType();
+                AccountOverviewByType overview = overviewMap.get(accountType);
+
+                if(overview == null){
+                    overview = new AccountOverviewByType();
+                    overviewMap.put(accountType, overview);
+                }
+
+                if(overview.getDateLastTransaction() == null){
+                    overview.setDateLastTransaction(transaction.getCreatedAt());
+                }
+
+                if(transaction.getCreatedAt().isAfter(overview.getDateLastTransaction())){
+                    overview.setDateLastTransaction(transaction.getCreatedAt());
+                }
+
+                overview.setTransactionCount(overview.getTransactionCount() + 1);
+
+                overview.setType(accountType.toString());
+
+                if(accountType == AccountType.ASSETS || accountType == AccountType.EXPENSES){
+                    overview.setBalance(overview.getBalance().add(transactionLine.getDebitAmount()).subtract(transactionLine.getCreditAmount()));
+                }
+
+                if(accountType == AccountType.LIABILITIES || accountType == AccountType.EQUITY || accountType == AccountType.REVENUE ){
+                    overview.setBalance(overview.getBalance().add(transactionLine.getCreditAmount()).subtract(transactionLine.getDebitAmount()));
+                }
+            }
+        }
+
+
+
+        return new ArrayList<>(overviewMap.values());
+    }
+
+    public List<IndividualAccountOverview> getAccountOverviewPerAccount(Long userId, Instant from) {
+        List<Transaction> transactionList =  transactionRepository.findAllTransactionsByUserIdAndCreatedAtAfter(userId, from);
+
+        Map<String, IndividualAccountOverview> overviewMap = new HashMap<>();
+
+        for(Transaction transaction : transactionList){
+            for(TransactionLine transactionLine: transaction.getLines()) {
+
+                String accountNumber = transactionLine.getAccount().getNumber();
+                IndividualAccountOverview overview = overviewMap.get(accountNumber);
+
+                if(overview == null){
+                    overview = new IndividualAccountOverview();
+                    overviewMap.put(accountNumber, overview);
+                }
+
+                if(overview.getDateLastTransaction() == null){
+                    overview.setDateLastTransaction(transaction.getCreatedAt());
+                }
+
+                if(transaction.getCreatedAt().isAfter(overview.getDateLastTransaction())){
+                    overview.setDateLastTransaction(transaction.getCreatedAt());
+                }
+
+                overview.setTransactionCount(overview.getTransactionCount() + 1);
+
+                AccountType accountType = transactionLine.getAccount().getAccountType();
+                overview.setType(accountType.toString());
+
+                if(accountType == AccountType.ASSETS || accountType == AccountType.EXPENSES){
+                    overview.setBalance(overview.getBalance().add(transactionLine.getDebitAmount()).subtract(transactionLine.getCreditAmount()));
+                }
+
+                if(accountType == AccountType.LIABILITIES || accountType == AccountType.EQUITY || accountType == AccountType.REVENUE ){
+                    overview.setBalance(overview.getBalance().add(transactionLine.getCreditAmount()).subtract(transactionLine.getDebitAmount()));
+                }
+
+                overview.setName(transactionLine.getAccount().getName());
+                overview.setNumber(transactionLine.getAccount().getNumber());
+            }
+        }
+
+        return new ArrayList<>(overviewMap.values());
+
+    }
 }

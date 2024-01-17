@@ -1,5 +1,8 @@
 package co.harborbytes.booklion.transaction;
 
+import co.harborbytes.booklion.account.AccountOverviewByType;
+import co.harborbytes.booklion.account.AccountStatus;
+import co.harborbytes.booklion.account.AccountType;
 import co.harborbytes.booklion.exception.DomainEntityNotFoundException;
 import co.harborbytes.booklion.exception.DomainEntityValidationException;
 import co.harborbytes.booklion.exception.TransactionValidationException;
@@ -9,14 +12,20 @@ import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.Validator;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class TransactionService {
@@ -115,4 +124,98 @@ public class TransactionService {
     public void deleteTransactionByIdAndUserId(Long id, Long userId){
         transactionRepo.deleteTransactionByIdAndUserId(id, userId);
     }
+
+    public List<AccountTransactionLedger> findTransactionsByUserIdAndAccountNumber(Long userId, String accountNumber){
+        return transactionRepo.findTransactionsByUserIdAndAccountNumber(userId, accountNumber);
+    }
+
+
+    public BalanceSheetReport getBalanceSheetReport(Long userId, Instant from) {
+        BalanceSheetReport report = new BalanceSheetReport();
+        List<Transaction> transactionList =  transactionRepo.findAllTransactionsByUserIdAndCreatedAtAfter(userId, from);
+
+        Map<String, AccountStatus> balanceMap = new HashMap<>();
+
+        for(Transaction transaction : transactionList){
+            for(TransactionLine transactionLine: transaction.getLines()){
+
+
+                String accountNumber = transactionLine.getAccount().getNumber();
+                AccountStatus accountStatus = balanceMap.get(accountNumber);
+
+                if(accountStatus == null){
+                    accountStatus = new AccountStatus();
+                    accountStatus.setBalance(new BigDecimal("0.00"));
+                    accountStatus.setName(transactionLine.getAccount().getName());
+                    balanceMap.put(accountNumber, accountStatus);
+                }
+
+
+                AccountType accountType = transactionLine.getAccount().getAccountType();
+
+                if(accountType == AccountType.ASSETS || accountType == AccountType.EXPENSES){
+                    accountStatus.setBalance(accountStatus.getBalance().add(transactionLine.getDebitAmount()).subtract(transactionLine.getCreditAmount()));
+                }
+
+                if(accountType == AccountType.LIABILITIES || accountType == AccountType.EQUITY || accountType == AccountType.REVENUE ){
+                    accountStatus.setBalance(accountStatus.getBalance().add(transactionLine.getCreditAmount()).subtract(transactionLine.getDebitAmount()));
+                }
+            }
+        }
+
+        List<AccountStatus> assets =      balanceMap.keySet().stream().filter(key -> key.startsWith("1")).map(key -> balanceMap.get(key)).collect(Collectors.toList());
+        List<AccountStatus> liabilities = balanceMap.keySet().stream().filter(key -> key.startsWith("2")).map(key -> balanceMap.get(key)).collect(Collectors.toList());
+        List<AccountStatus> equity =      balanceMap.keySet().stream().filter(key -> key.startsWith("3")).map(key -> balanceMap.get(key)).collect(Collectors.toList());
+
+        report.setAssets(assets);
+        report.setLiabilities(liabilities);
+        report.setEquity(equity);
+
+        return report;
+    }
+
+    public IncomeStatementReport getIncomeStatementReport(Long userId, Instant from) {
+        IncomeStatementReport report = new IncomeStatementReport();
+        List<Transaction> transactionList =  transactionRepo.findAllTransactionsByUserIdAndCreatedAtAfter(userId, from);
+
+        Map<String, AccountStatus> balanceMap = new HashMap<>();
+
+        for(Transaction transaction : transactionList){
+            for(TransactionLine transactionLine: transaction.getLines()){
+
+                String accountNumber = transactionLine.getAccount().getNumber();
+                AccountStatus accountStatus = balanceMap.get(accountNumber);
+
+                if(accountStatus == null){
+                    accountStatus = new AccountStatus();
+                    accountStatus.setBalance(new BigDecimal("0.00"));
+                    accountStatus.setName(transactionLine.getAccount().getName());
+                    balanceMap.put(accountNumber, accountStatus);
+                }
+
+
+                AccountType accountType = transactionLine.getAccount().getAccountType();
+
+                if(accountType == AccountType.ASSETS || accountType == AccountType.EXPENSES){
+                    accountStatus.setBalance(accountStatus.getBalance().add(transactionLine.getDebitAmount()).subtract(transactionLine.getCreditAmount()));
+                }
+
+                if(accountType == AccountType.LIABILITIES || accountType == AccountType.EQUITY || accountType == AccountType.REVENUE ){
+                    accountStatus.setBalance(accountStatus.getBalance().add(transactionLine.getCreditAmount()).subtract(transactionLine.getDebitAmount()));
+                }
+            }
+        }
+
+        List<AccountStatus> revenue =  balanceMap.keySet().stream().filter(key -> key.startsWith("4")).map(key -> balanceMap.get(key)).collect(Collectors.toList());
+        List<AccountStatus> expenses = balanceMap.keySet().stream().filter(key -> key.startsWith("5")).map(key -> balanceMap.get(key)).collect(Collectors.toList());
+
+        report.setRevenue(revenue);
+        report.setExpenses(expenses);
+
+        return report;
+    }
+
+
+
+
 }
