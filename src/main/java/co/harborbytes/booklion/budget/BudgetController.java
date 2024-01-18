@@ -36,7 +36,7 @@ public class BudgetController {
 
     @PostMapping("/accounts/{id}/budget")
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponseSuccess<BudgetDTO> createBudget(@PathVariable("id") @Positive Long accountId, @Validated @RequestBody BudgetDTO budgetDto, BindingResult result) {
+    public ApiResponseSuccess<BudgetWithSpendingOverTimeDTO> createBudget(@PathVariable("id") @Positive Long accountId, @Validated @RequestBody CreateBudgetDTO createBudgetDTO, BindingResult result) {
 
         if(result.hasErrors()){
             throw new DomainEntityValidationException(result);
@@ -44,13 +44,13 @@ public class BudgetController {
         User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
         return new ApiResponseSuccess<>(
-                budgetService.createBudget(budgetDto, accountId, loggedInUser.getId())
+                budgetService.createBudget(createBudgetDTO, accountId, loggedInUser.getId())
         );
     }
 
     @ResponseStatus(HttpStatus.OK)
     @GetMapping("/budgets/{id}")
-    public ApiResponseSuccess<BudgetDTO> getBudgetById(@PathVariable("id") @Positive Long id) {
+    public ApiResponseSuccess<BudgetWithSpendingOverTimeDTO> getBudgetById(@PathVariable("id") @Positive Long id) {
 
         User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
@@ -61,7 +61,8 @@ public class BudgetController {
 
     @ResponseStatus(HttpStatus.OK)
     @GetMapping("/budgets")
-    public ApiResponseSuccess<Page<BudgetDTO>> getBudgets(@PageableDefault(page = 0, size = 20, sort = "id") Pageable pageable) {
+
+    public ApiResponseSuccess<Page<ReadBudgetDTO>> getBudgets(@PageableDefault(page = 0, size = 20, sort = "id") Pageable pageable) {
 
         User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
@@ -70,29 +71,29 @@ public class BudgetController {
         );
     }
 
-    @PutMapping("/accounts/{id}/budget/{budgetId}")
-    public ResponseEntity<ApiResponseSuccess<BudgetDTO>> updateBudget(@PathVariable("id") @Positive Long accountId , @PathVariable("budgetId") @Positive Long budgetId, @Validated @RequestBody BudgetDTO budgetDto, BindingResult result) {
-
-        if(result.hasErrors()){
-            throw new DomainEntityValidationException(result);
-        }
-
-        User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-
-        budgetDto.setId(budgetId);
-        AtomicBoolean didCreate = new AtomicBoolean(false);
-        BudgetDTO updatedBudget = budgetService.updateBudget(budgetDto, accountId, loggedInUser.getId(), didCreate);
-
-        return new ResponseEntity<>(
-                new ApiResponseSuccess<>(updatedBudget),
-                didCreate.get() ? HttpStatus.CREATED : HttpStatus.OK
-        );
-
-    }
+//    @PutMapping("/accounts/{id}/budget/{budgetId}")
+//    public ResponseEntity<ApiResponseSuccess<BudgetDTO>> updateBudget(@PathVariable("id") @Positive Long accountId , @PathVariable("budgetId") @Positive Long budgetId, @Validated @RequestBody BudgetDTO budgetDto, BindingResult result) {
+//
+//        if(result.hasErrors()){
+//            throw new DomainEntityValidationException(result);
+//        }
+//
+//        User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+//
+//        budgetDto.setId(budgetId);
+//        AtomicBoolean didCreate = new AtomicBoolean(false);
+//        BudgetDTO updatedBudget = budgetService.updateBudget(budgetDto, accountId, loggedInUser.getId(), didCreate);
+//
+//        return new ResponseEntity<>(
+//                new ApiResponseSuccess<>(updatedBudget),
+//                didCreate.get() ? HttpStatus.CREATED : HttpStatus.OK
+//        );
+//
+//    }
 
     @ResponseStatus(HttpStatus.OK)
     @PatchMapping("/budgets/{id}")
-    public ApiResponseSuccess<BudgetDTO> partiallyUpdateBudget(@PathVariable("id") @Positive Long id, @RequestBody Map<String, Object> incompleteBudget) {
+    public ApiResponseSuccess<BudgetWithSpendingOverTimeDTO> partiallyUpdateBudget(@PathVariable("id") @Positive Long id, @RequestBody Map<String, Object> incompleteBudget) {
 
         User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 

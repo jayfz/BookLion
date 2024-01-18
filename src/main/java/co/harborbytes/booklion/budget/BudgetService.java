@@ -4,6 +4,9 @@ import co.harborbytes.booklion.account.Account;
 import co.harborbytes.booklion.account.AccountRepository;
 import co.harborbytes.booklion.exception.DomainEntityNotFoundException;
 import co.harborbytes.booklion.exception.DomainEntityValidationException;
+import co.harborbytes.booklion.transaction.AccountTransactionLedger;
+import co.harborbytes.booklion.transaction.Transaction;
+import co.harborbytes.booklion.transaction.TransactionRepository;
 import co.harborbytes.booklion.user.User;
 import co.harborbytes.booklion.user.UserRepository;
 import jakarta.persistence.Column;
@@ -20,11 +23,12 @@ import org.springframework.validation.Validator;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.time.Instant;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 @Service
 public class BudgetService {
@@ -33,20 +37,37 @@ public class BudgetService {
     private final BudgetRepository budgetRepo;
     private final AccountRepository accountRepo;
     private final UserRepository userRepo;
+    private final TransactionRepository transactionRepository;
 
     private final Validator validator;
     @Autowired
-    public BudgetService(BudgetMapper mapper, BudgetRepository budgetRepo, AccountRepository accountRepo, UserRepository userRepo, Validator validator) {
+    public BudgetService(BudgetMapper mapper, BudgetRepository budgetRepo, AccountRepository accountRepo, UserRepository userRepo, Validator validator, TransactionRepository transactionRepository) {
         this.mapper = mapper;
         this.accountRepo = accountRepo;
         this.budgetRepo = budgetRepo;
         this.userRepo = userRepo;
         this.validator = validator;
+        this.transactionRepository = transactionRepository;
     }
 
 
     @Transactional
-    public BudgetDTO createBudget(BudgetDTO budget, Long accountId, Long userId) {
+//    public BudgetDTO createBudget(BudgetDTO budget, Long accountId, Long userId) {
+//
+//        User user = userRepo
+//                .findById(userId).orElseThrow(() -> new DomainEntityNotFoundException(User.class.getSimpleName(), "id", userId.toString()));
+//
+//        Account account = accountRepo
+//                .findById(accountId).orElseThrow(() -> new DomainEntityNotFoundException(Account.class.getSimpleName(), "id", accountId.toString()));
+//
+//
+//        Budget mappedBudget = mapper.dtoToBudget(budget);
+//        mappedBudget.setId(null);
+//        mappedBudget.setAccount(account);
+//        mappedBudget.setUser(user);
+//        return mapper.budgetToDto(budgetRepo.save(mappedBudget));
+//    }
+    public BudgetWithSpendingOverTimeDTO createBudget(CreateBudgetDTO budget, Long accountId, Long userId) {
 
         User user = userRepo
                 .findById(userId).orElseThrow(() -> new DomainEntityNotFoundException(User.class.getSimpleName(), "id", userId.toString()));
@@ -55,59 +76,121 @@ public class BudgetService {
                 .findById(accountId).orElseThrow(() -> new DomainEntityNotFoundException(Account.class.getSimpleName(), "id", accountId.toString()));
 
 
-        Budget mappedBudget = mapper.dtoToBudget(budget);
+        Budget mappedBudget = mapper.createBudgetDtoToBudget(budget);
         mappedBudget.setId(null);
         mappedBudget.setAccount(account);
         mappedBudget.setUser(user);
-        return mapper.budgetToDto(budgetRepo.save(mappedBudget));
+
+        BudgetWithSpendingOverTimeDTO budgetWithSpendingOverTimeDTO = mapper.budgetToBudgetWithSpendingOverTimeDTO(budgetRepo.save(mappedBudget));
+        budgetWithSpendingOverTimeDTO.setSpending(computeBudgetSpenditureUpUntilDate(userId, account.getNumber(), Instant.now()));
+        return budgetWithSpendingOverTimeDTO;
     }
 
-    public BudgetDTO findBudgetById(Long id, Long userId) {
+    public BudgetWithSpendingOverTimeDTO findBudgetById(Long id, Long userId) {
         Budget budgetToFind = budgetRepo
                 .findByIdAndUserId(id, userId).orElseThrow(() -> new DomainEntityNotFoundException(Budget.class.getSimpleName(), "id", id.toString()));
 
-        return mapper.budgetToDto(budgetToFind);
+        BudgetWithSpendingOverTimeDTO budgetWithSpendingOverTimeDTO = mapper.budgetToBudgetWithSpendingOverTimeDTO(budgetToFind);
+        budgetWithSpendingOverTimeDTO.setSpending(computeBudgetSpenditureUpUntilDate(userId, budgetToFind.getAccount().getNumber(), Instant.now()));
+        return budgetWithSpendingOverTimeDTO;
     }
 
-    public Page<BudgetDTO> findBudgetsByUserId(Long userId, Pageable pageable) {
-        return budgetRepo.findAllByUserId(userId, pageable)
-                .map(mapper::budgetToDto);
+    public Page<ReadBudgetDTO> findBudgetsByUserId(Long userId, Pageable pageable) {
+
+
+        Page<ReadBudgetDTO> readBudgetDTOPage = budgetRepo.findAllByUserId(userId, pageable)
+                .map(mapper::budgetToReadBudgetDto);
+
+        readBudgetDTOPage.forEach(readBudgetDTO -> {
+            readBudgetDTO.setSpentSoFar(computeBudgetSpenditureForCurrentMonth(userId, readBudgetDTO.getAccountNumber()));
+        });
+
+        return readBudgetDTOPage;
     }
 
+    public BigDecimal computeBudgetSpenditureForCurrentMonth(Long userId, String accountNumber){
 
-    @Transactional
-    public BudgetDTO updateBudget(BudgetDTO budgetDto, Long accountId, Long userId, AtomicBoolean didCreate) {
 
-        if (budgetDto.getId() == null)
-            throw new RuntimeException("Budget id can not be null. If you know the Id is already null, you must use the create endpoint");
+        Instant startDate = Instant.parse(String.format("%sT00:00:00Z", YearMonth.from(Instant.now().atZone(ZoneId.of("UTC"))).atDay(1)));
+        Instant endDate = Instant.parse(String.format("%sT00:00:00Z", YearMonth.from(Instant.now().atZone(ZoneId.of("UTC"))).atEndOfMonth()));
+        List<AccountTransactionLedger> transactions = transactionRepository.findTransactionsByUserIdAndAccountNumberBetweenDates(userId, accountNumber,startDate, endDate);
 
-        Account account = accountRepo
-                .findById(accountId).orElseThrow(() -> new DomainEntityNotFoundException(Account.class.getSimpleName(), "id", accountId.toString()));
+        BigDecimal spentSoFar =  new BigDecimal("0.00");
+        for(AccountTransactionLedger transaction : transactions){
+            spentSoFar = spentSoFar.add(transaction.getDebits().subtract(transaction.getCredits()));
+        }
+        return spentSoFar;
+    }
 
-        User user = userRepo
-                .findById(userId).orElseThrow(() -> new DomainEntityNotFoundException(User.class.getSimpleName(), "id", userId.toString()));
+    public List<BudgetMonthlySpenditure> computeBudgetSpenditureUpUntilDate(Long userId, String accountNumber, Instant to){
+        return computeBudgetSpenditureBetweenDates(userId, accountNumber, Instant.parse("2000-01-01T00:00:00Z"), to);
+    }
 
-        Optional<Budget> maybeBudget = budgetRepo.findById(budgetDto.getId());
+    public List<BudgetMonthlySpenditure> computeBudgetSpenditureBetweenDates(Long userId, String accountNumber, Instant from, Instant to){
 
-        Budget budget;
-        if (maybeBudget.isEmpty()) {
-            Budget mappedBudget = mapper.dtoToBudget(budgetDto);
-            mappedBudget.setId(null);
-            mappedBudget.setAccount(account);
-            mappedBudget.setUser(user);
-            budget = budgetRepo.save(mappedBudget);
-            didCreate.set(true);
-        } else {
-            budget = maybeBudget.get();
-            mapper.updateBudgetFromDto(budgetDto, budget);
-            didCreate.set(false);
+
+        List<AccountTransactionLedger> transactions = transactionRepository.findTransactionsByUserIdAndAccountNumberBetweenDates(userId, accountNumber,from, to);
+        Map<String, BigDecimal> spenditureOverTime = new HashMap<>();
+
+        for(AccountTransactionLedger transaction : transactions){
+
+            String period = getMonthAndYear(transaction.getDate());
+            BigDecimal spentOnPeriod = spenditureOverTime.get(period);
+            if(spentOnPeriod == null){
+                spentOnPeriod = new BigDecimal("0.00");
+            }
+
+            spenditureOverTime.put(period, spentOnPeriod.add(transaction.getDebits().subtract(transaction.getCredits())));
         }
 
-        return mapper.budgetToDto(budget);
+        List<BudgetMonthlySpenditure> monthlySpenditures = new ArrayList<>();
+        spenditureOverTime.forEach((month, spentAmount) ->{
+            monthlySpenditures.add(new BudgetMonthlySpenditure(month, spentAmount));
+        });
+
+        return monthlySpenditures;
     }
 
+    public String getMonthAndYear(Instant instant){
+        ZoneId z = ZoneId.of("UTC");
+        ZonedDateTime zdt = ZonedDateTime.now(z);
+        return String.format("%s-%02d", zdt.getYear(), zdt.getMonthValue());
+    }
+
+
+//    @Transactional
+//    public BudgetDTO updateBudget(BudgetDTO budgetDto, Long accountId, Long userId, AtomicBoolean didCreate) {
+//
+//        if (budgetDto.getId() == null)
+//            throw new RuntimeException("Budget id can not be null. If you know the Id is already null, you must use the create endpoint");
+//
+//        Account account = accountRepo
+//                .findById(accountId).orElseThrow(() -> new DomainEntityNotFoundException(Account.class.getSimpleName(), "id", accountId.toString()));
+//
+//        User user = userRepo
+//                .findById(userId).orElseThrow(() -> new DomainEntityNotFoundException(User.class.getSimpleName(), "id", userId.toString()));
+//
+//        Optional<Budget> maybeBudget = budgetRepo.findById(budgetDto.getId());
+//
+//        Budget budget;
+//        if (maybeBudget.isEmpty()) {
+//            Budget mappedBudget = mapper.dtoToBudget(budgetDto);
+//            mappedBudget.setId(null);
+//            mappedBudget.setAccount(account);
+//            mappedBudget.setUser(user);
+//            budget = budgetRepo.save(mappedBudget);
+//            didCreate.set(true);
+//        } else {
+//            budget = maybeBudget.get();
+//            mapper.updateBudgetFromDto(budgetDto, budget);
+//            didCreate.set(false);
+//        }
+//
+//        return mapper.budgetToDto(budget);
+//    }
+
     @Transactional
-    public BudgetDTO partiallyUpdateBudget(Map<String, Object> incompleteBudget, Long id, Long userId) {
+    public BudgetWithSpendingOverTimeDTO partiallyUpdateBudget(Map<String, Object> incompleteBudget, Long id, Long userId) {
 
 
         Budget budgetToUpdate = budgetRepo
@@ -169,13 +252,17 @@ public class BudgetService {
         if (result.hasErrors())
             throw new DomainEntityValidationException(result);
 
-        return mapper.budgetToDto(budgetToUpdate);
+        BudgetWithSpendingOverTimeDTO budgetWithSpendingOverTimeDTO = mapper.budgetToBudgetWithSpendingOverTimeDTO(budgetToUpdate);
+        budgetWithSpendingOverTimeDTO.setSpending(computeBudgetSpenditureUpUntilDate(userId, budgetToUpdate.getAccount().getNumber(), Instant.now()));
+//        return mapper.budgetToDto(budgetToUpdate);
 
+        return budgetWithSpendingOverTimeDTO;
     }
 
     @Transactional
     public void deleteBudget(Long id, Long userId) {
         budgetRepo.deleteByIdAndUserId(id, userId);
     }
+
 
 }

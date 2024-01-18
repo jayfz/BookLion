@@ -26,4 +26,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             "FROM TransactionLine tl INNER JOIN tl.account a INNER JOIN tl.transaction t where t.user.id  = :userId AND a.number = :accountNumber")
     List<AccountTransactionLedger> findTransactionsByUserIdAndAccountNumber(@Param("userId")Long userId, @Param("accountNumber") String accountNumber);
 
+    @Query("SELECT new co.harborbytes.booklion.transaction.AccountTransactionLedger (t.createdAt, t.description, a.accountType, tl.debitAmount, tl.creditAmount, t.id) " +
+            "FROM TransactionLine tl INNER JOIN tl.account a INNER JOIN tl.transaction t where t.user.id  = :userId AND a.number = :accountNumber AND t.createdAt BETWEEN :startDate AND :endDate")
+    List<AccountTransactionLedger> findTransactionsByUserIdAndAccountNumberBetweenDates(@Param("userId")Long userId, @Param("accountNumber") String accountNumber, @Param("startDate") Instant startDate, @Param("endDate") Instant endDate);
+
 }

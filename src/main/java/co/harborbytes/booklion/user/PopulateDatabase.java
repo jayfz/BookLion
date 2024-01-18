@@ -3,6 +3,8 @@ package co.harborbytes.booklion.user;
 import co.harborbytes.booklion.account.Account;
 import co.harborbytes.booklion.account.AccountRepository;
 import co.harborbytes.booklion.account.AccountType;
+import co.harborbytes.booklion.budget.Budget;
+import co.harborbytes.booklion.budget.BudgetRepository;
 import co.harborbytes.booklion.transaction.Transaction;
 import co.harborbytes.booklion.transaction.TransactionLine;
 import co.harborbytes.booklion.transaction.TransactionRepository;
@@ -24,14 +26,16 @@ public class PopulateDatabase {
     private AccountRepository accountRepository;
     private TransactionRepository transactionRepository;
     private PasswordEncoder passwordEncoder;
+    private BudgetRepository budgetRepository;
 
     @Autowired
-    public PopulateDatabase(UserRepository userRepository, AccountRepository accountRepository, TransactionRepository transactionRepository, PasswordEncoder passwordEncoder) {
+    public PopulateDatabase(UserRepository userRepository, AccountRepository accountRepository, TransactionRepository transactionRepository, PasswordEncoder passwordEncoder, BudgetRepository budgetRepository) {
 
         this.userRepository = userRepository;
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
         this.passwordEncoder = passwordEncoder;
+        this.budgetRepository = budgetRepository;
 
     }
 
@@ -47,6 +51,7 @@ public class PopulateDatabase {
 
         addAccounts(user);
         addTransactions(user);
+        addBudgets(user);
 
     }
 
@@ -113,6 +118,18 @@ public class PopulateDatabase {
         transaction.setDescription("Initial invested capital");
         transactionRepository.save(transaction);
         scanner.close();
+    }
+
+    public void addBudgets(User user) {
+        //besides budgets, we can also have funds...
+        Budget budget = new Budget();
+        Account familyAndFriendsExpensesAccount = accountRepository.findByNumber("513").get();
+        budget.setAccount(familyAndFriendsExpensesAccount);
+        budget.setDescription("F&F expenses monitoring");
+        budget.setAmount(new BigDecimal("250000.00"));
+        budget.setUser(user);
+        budgetRepository.save(budget);
+
     }
 
     public void addTransactions(User user) throws FileNotFoundException {
