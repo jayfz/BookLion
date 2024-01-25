@@ -1,4 +1,6 @@
 package co.harborbytes.booklion.account;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,7 +19,10 @@ public class IndividualAccountOverview {
     private String name;
     private String number;
     private Instant dateLastTransaction;
+
+    @JsonSerialize(using = ToStringSerializer.class)
     private BigDecimal balance;
+    @JsonSerialize(using = ToStringSerializer.class)
     private BigDecimal variation;
 
     public IndividualAccountOverview() {

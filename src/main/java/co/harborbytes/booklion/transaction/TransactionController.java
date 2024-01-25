@@ -21,7 +21,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @RestController
-@RequestMapping("/transactions")
+@RequestMapping("/api/transactions")
 public class TransactionController {
 
     private final TransactionService transactionService;
@@ -59,10 +59,10 @@ public class TransactionController {
         }
 
         User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return new ApiResponseSuccess<>(transactionService.getBalanceSheetReport(loggedInUser.getId(), date) );
+        return new ApiResponseSuccess<>(transactionService.getBalanceSheetReportV2(loggedInUser.getId(), date) );
     }
 
-    @GetMapping(value = "income-statement", params= "from")
+    @GetMapping(value = "/income-statement", params= "from")
     public ApiResponseSuccess<IncomeStatementReport> getIncomeStatementReport(@RequestParam("from") String fromDate){
 
         Instant date;
@@ -74,7 +74,7 @@ public class TransactionController {
         }
 
         User loggedInUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return new ApiResponseSuccess<>(transactionService.getIncomeStatementReport(loggedInUser.getId(), date) );
+        return new ApiResponseSuccess<>(transactionService.getIncomeStatementReportV2(loggedInUser.getId(), date) );
     }
 
     @ResponseStatus(HttpStatus.OK)

@@ -27,5 +27,8 @@ public class TransactionDTO {
     private List<TransactionLineDTO> lines;
 
     private Long id;
+
+    @NotNull
+    @PastOrPresent
     private Instant createdAt;
 }

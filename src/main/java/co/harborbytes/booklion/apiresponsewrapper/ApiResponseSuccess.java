@@ -22,10 +22,10 @@ public class ApiResponseSuccess<T> {
 
     public ApiResponseSuccess(Page pageable) {
         this.data = (T) pageable.getContent();
-        this.page = new PageSummary(pageable.getTotalElements(), pageable.getTotalPages(), pageable.isFirst(), pageable.isLast(),pageable.getSort().toString());
+        this.page = new PageSummary(pageable.getTotalElements(), pageable.getTotalPages(), pageable.isFirst(), pageable.isLast(),pageable.getSort().toString(), pageable.getNumber());
 
     }
-    private record PageSummary(long totalElements, long totalPages, boolean first, boolean last, String order) {}
+    private record PageSummary(long totalElements, long totalPages, boolean first, boolean last, String order, int number) {}
 }
 
 

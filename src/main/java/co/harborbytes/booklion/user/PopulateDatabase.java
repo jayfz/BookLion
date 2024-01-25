@@ -18,6 +18,7 @@ import java.io.FileReader;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class PopulateDatabase {
@@ -78,7 +79,7 @@ public class PopulateDatabase {
 
         final Transaction transaction = new Transaction();
         transaction.setUser(user);
-        transaction.setCreatedAt(Instant.parse("2023-12-31T00:00:00Z"));
+        transaction.setCreatedAt(Instant.parse("2023-12-31T23:59:59Z"));
         final List<TransactionLine> lines = new ArrayList<>();
 
         accountRepository.findAll().stream().filter(account -> account.getNumber().matches("^[12]\\d+$")).forEach((account -> {
@@ -152,7 +153,7 @@ public class PopulateDatabase {
 
             boolean isDateRow = parts[0].matches("\\d+-\\d+-\\d+");
             if (isDateRow) {
-                transaction.setCreatedAt(Instant.parse(String.format("%sT00:00:00Z", parts[0])));
+                transaction.setCreatedAt(Instant.parse(String.format("%sT00:00:00-05:00", parts[0])));
             }
 
             boolean isAmountRow = Arrays.stream(parts).allMatch(p -> p.matches("\\d+(\\.\\d+)?"));

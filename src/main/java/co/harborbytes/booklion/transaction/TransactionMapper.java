@@ -8,7 +8,7 @@ import org.mapstruct.Mapping;
 public abstract class TransactionMapper {
 
     @Mapping( target = "id", ignore = true)
-    @Mapping( target = "createdAt", ignore = true)
+//    @Mapping( target = "createdAt", ignore = true)
     @Mapping( target = "user", ignore = true)
     public abstract Transaction dtoToTransaction (TransactionDTO dto);
     public abstract TransactionDTO transactionToDto (Transaction transaction);

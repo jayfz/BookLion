@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 
 @RestController
-
+@RequestMapping("/api")
 public class BudgetController {
 
     private final BudgetService budgetService;

@@ -23,10 +23,9 @@ import org.springframework.validation.Validator;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.YearMonth;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.*;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -123,22 +122,24 @@ public class BudgetService {
     }
 
     public List<BudgetMonthlySpenditure> computeBudgetSpenditureUpUntilDate(Long userId, String accountNumber, Instant to){
-        return computeBudgetSpenditureBetweenDates(userId, accountNumber, Instant.parse("2000-01-01T00:00:00Z"), to);
+
+        Instant from = to.atZone(ZoneId.of("UTC")).minusMonths(6).toInstant();
+        return computeBudgetSpenditureBetweenDates(userId, accountNumber, from , to);
     }
 
     public List<BudgetMonthlySpenditure> computeBudgetSpenditureBetweenDates(Long userId, String accountNumber, Instant from, Instant to){
 
 
         List<AccountTransactionLedger> transactions = transactionRepository.findTransactionsByUserIdAndAccountNumberBetweenDates(userId, accountNumber,from, to);
-        Map<String, BigDecimal> spenditureOverTime = new HashMap<>();
+        Map<String, BigDecimal> spenditureOverTime = getBaseSpenditureOverTime(from, to);
 
         for(AccountTransactionLedger transaction : transactions){
 
             String period = getMonthAndYear(transaction.getDate());
             BigDecimal spentOnPeriod = spenditureOverTime.get(period);
-            if(spentOnPeriod == null){
-                spentOnPeriod = new BigDecimal("0.00");
-            }
+//            if(spentOnPeriod == null){
+//                spentOnPeriod = new BigDecimal("0.00");
+//            }
 
             spenditureOverTime.put(period, spentOnPeriod.add(transaction.getDebits().subtract(transaction.getCredits())));
         }
@@ -155,6 +156,24 @@ public class BudgetService {
         ZoneId z = ZoneId.of("UTC");
         ZonedDateTime zdt = ZonedDateTime.now(z);
         return String.format("%s-%02d", zdt.getYear(), zdt.getMonthValue());
+    }
+
+    private Map<String, BigDecimal> getBaseSpenditureOverTime (Instant from, Instant to){
+
+        Map<String, BigDecimal> result = new LinkedHashMap<>();
+        if(from.compareTo(to) >= 0)
+            return result;
+
+        ZoneId zid = ZoneId.of("UTC");
+        ZonedDateTime startDate = to.atZone(zid);
+        ZonedDateTime endDate = from.atZone(zid);
+
+        do{
+            result.put(String.format("%s-%02d", startDate.getYear(), startDate.getMonthValue()), new BigDecimal("0.00"));
+            startDate = startDate.minusMonths(1);
+        }while (startDate.getYear() != endDate.getYear() || startDate.getMonthValue() != endDate.getMonthValue());
+        
+        return result;
     }
 
 

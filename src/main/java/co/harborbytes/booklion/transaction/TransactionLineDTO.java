@@ -4,6 +4,8 @@ import co.harborbytes.booklion.account.AccountDTO;
 import co.harborbytes.booklion.transaction.validation.TransactionLineBothAmountsSetConstraint;
 import co.harborbytes.booklion.transaction.validation.TransactionLineBothAmountsSetWithZeroConstraint;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -20,10 +22,12 @@ public class TransactionLineDTO {
 
     @NotNull
     @PositiveOrZero
+    @JsonSerialize(using = ToStringSerializer.class)
     private BigDecimal debitAmount;
 
     @NotNull
     @PositiveOrZero
+    @JsonSerialize(using = ToStringSerializer.class)
     private BigDecimal creditAmount;
 
     @NotNull

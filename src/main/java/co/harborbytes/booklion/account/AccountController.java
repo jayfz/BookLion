@@ -37,7 +37,7 @@ import static co.harborbytes.booklion.account.Account.ACCOUNT_NUMBER_ERROR;
 
 
 @RestController
-@RequestMapping( )
+@RequestMapping("/api")
 public class AccountController {
 
     private final AccountService accountService;
@@ -82,7 +82,7 @@ private final Instant defaultFromDate = Instant.parse("2024-01-01T00:00:00Z");
 
     @GetMapping( value = "/accounts/overview", params = "from")
     @ResponseStatus(HttpStatus.OK)
-    public ApiResponseSuccess<List<AccountOverviewByType>> getAccountOverviewGroupedByAccountType(@RequestParam(value = "from") String fromDate){
+    public ApiResponseSuccess<List<AccountOverviewByType>> getAccountOverviewGroupedByAccountType(@RequestParam(value = "from", required = false) String fromDate){
 
         Instant date;
         try{
