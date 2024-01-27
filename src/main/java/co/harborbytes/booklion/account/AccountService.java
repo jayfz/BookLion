@@ -18,6 +18,7 @@ import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import org.springframework.validation.*;
 
@@ -225,5 +226,27 @@ public class AccountService {
 
         return new ArrayList<>(overviewMap.values());
 
+    }
+    public String findNextAccountNumberForAccountType(AccountType type){
+        String accountNumber = this.repo.findMaxAccountNumberForAccountType(type);
+        if(accountNumber != null && !accountNumber.equals("")){
+            return String.format("%s", Integer.parseInt(accountNumber) + 1);
+        }
+
+        return switch (type){
+            case ASSETS -> "100";
+            case LIABILITIES -> "200";
+            case EQUITY -> "300";
+            case REVENUE -> "400";
+            case EXPENSES -> "500";
+        };
+    }
+
+    public List<AccountDTO> findAccountsByNameAndType(String queryName, AccountType accountType){
+        return this.repo.findByNameIgnoreCaseContainingAndAccountTypeIs(queryName, accountType).stream().map(mapper::accountToDto).collect(Collectors.toList());
+    }
+
+    public List<AccountDTO> findAccountsByName(String queryName){
+        return this.repo.findByNameIgnoreCaseContaining(queryName).stream().map(mapper::accountToDto).collect(Collectors.toList());
     }
 }

@@ -116,7 +116,22 @@ private final Instant defaultFromDate = Instant.parse("2024-01-01T00:00:00Z");
         return new ApiResponseSuccess<>(result);
     }
 
+    @GetMapping(value = "/accounts/findNextAccountNumber", params = "accountType")
+    public ApiResponseSuccess<String> findNextAccountNumber(@Valid @RequestParam(value = "accountType") AccountType type){
+        return new ApiResponseSuccess<>(accountService.findNextAccountNumberForAccountType(type));
+    }
 
+    @GetMapping(value = "/accounts/searchBy", params = {"name", "accountType"})
+    public ApiResponseSuccess<List<AccountDTO>> findAccountsByNameAndType(@RequestParam("name") String queryName, @Valid @RequestParam("accountType") AccountType type)
+    {
+        return new ApiResponseSuccess(accountService.findAccountsByNameAndType(queryName, type));
+    }
+
+    @GetMapping(value = "/accounts/searchBy", params = {"name", "accountType=all"})
+    public ApiResponseSuccess<List<AccountDTO>> findAccountsByName(@RequestParam("name") String queryName)
+    {
+        return new ApiResponseSuccess(accountService.findAccountsByName(queryName));
+    }
 
     @PutMapping("/accounts/{id}")
     public ResponseEntity<ApiResponseSuccess<AccountDTO>> updateAccount( @PathVariable("id") @Positive Long accountId, @Validated @RequestBody AccountDTO accountToUpdate, BindingResult results) {
