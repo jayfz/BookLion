@@ -58,8 +58,6 @@ public class User implements UserDetails {
     @Column(name = "is_enabled")
     private boolean isEnabled = true;
 
-
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority(role.name()));

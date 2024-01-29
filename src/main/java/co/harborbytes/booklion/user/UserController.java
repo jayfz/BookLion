@@ -12,6 +12,7 @@ public class UserController {
 
     private final AuthenticationService authenticationService;
 
+
     @Autowired
     public UserController(AuthenticationService authenticationService) {
         this.authenticationService = authenticationService;
@@ -28,6 +29,12 @@ public class UserController {
     public ApiResponseSuccess<TokenDTO> login (@RequestBody LoginDTO loginDTO){
         return new ApiResponseSuccess<>(authenticationService.login(loginDTO));
 
+    }
+
+    @PostMapping("/auth/google/login")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponseSuccess<TokenDTO> googleLogin(@RequestBody TokenDTO token){
+        return new ApiResponseSuccess<>(authenticationService.googleLogin(token));
     }
 
 }

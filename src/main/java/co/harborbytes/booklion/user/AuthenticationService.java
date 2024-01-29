@@ -1,5 +1,6 @@
 package co.harborbytes.booklion.user;
 
+import jakarta.transaction.Transactional;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,17 +18,20 @@ public class AuthenticationService {
     private final JwtTokenUtil jwtTokenUtil;
     private final String userCreatedSuccesfully = "User registered succesfully";
     private final AuthenticationManager authenticationManager;
+    private final GoogleIdTokenVerificationService googleIdTokenVerificationService;
 
     @Autowired
-    public AuthenticationService(UserRepository userRepository, UserMapper userMapper, PasswordEncoder passwordEncoder, JwtTokenUtil jwtTokenUtil, AuthenticationManager authenticationManager) {
+    public AuthenticationService(UserRepository userRepository, UserMapper userMapper, PasswordEncoder passwordEncoder, JwtTokenUtil jwtTokenUtil, AuthenticationManager authenticationManager, GoogleIdTokenVerificationService googleIdTokenVerificationService) {
         this.userRepository = userRepository;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenUtil = jwtTokenUtil;
         this.authenticationManager = authenticationManager;
+        this.googleIdTokenVerificationService = googleIdTokenVerificationService;
 
     }
 
+    @Transactional
     public String register(UserDTO userDTO) {
 
         userRepository.findByEmail(userDTO.getEmail()).ifPresent((foundUser) -> {
@@ -52,4 +56,17 @@ public class AuthenticationService {
         String token = jwtTokenUtil.generateToken(user);
         return new TokenDTO(token);
     }
+
+    @Transactional
+    public TokenDTO googleLogin(TokenDTO googleIdToken){
+        User tokenUser = this.googleIdTokenVerificationService.verify(googleIdToken.getToken());
+        if(userRepository.findByEmail(tokenUser.getEmail()).isEmpty()){
+            userRepository.save(tokenUser);
+        }
+        String token = jwtTokenUtil.generateToken(tokenUser);
+        return new TokenDTO(token);
+    }
+
+
+
 }
